@@ -1,31 +1,26 @@
 import express from "express";
 import bodyParser from "body-parser";
-import pg from "pg";
-import env from "dotenv";
+import dotenv from "dotenv";
+import { neon } from "@neondatabase/serverless";
+import http from "http";
 
-env.config();
+// Load environment variables
+dotenv.config();
+
 const app = express();
-const port = process.env.PORT || 3000;
+const sql = neon(process.env.DATABASE_URL);
 
-const {Client} = pg;
-const db = new Client({
-  connectionString: process.env.EXTERNAL_URL,
-  ssl: {
-    rejectUnauthorized: false, // Adjust based on your SSL requirements
-  },
-});
-
-db.connect();
-
+// Middleware
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static("public"));
 
 let items = [];
 
+// Routes
 app.get("/", async (req, res) => {
   try {
-    const result = await db.query("SELECT * FROM items ORDER BY id ASC");
-    items = result.rows;
+    const result = await sql`SELECT * FROM items ORDER BY id ASC`;
+    items = result;
 
     res.render("index.ejs", {
       listTitle: "Today",
@@ -38,9 +33,8 @@ app.get("/", async (req, res) => {
 
 app.post("/add", async (req, res) => {
   const item = req.body.newItem;
-  // items.push({title: item});
   try {
-    await db.query("INSERT INTO items (title) VALUES ($1)", [item]);
+    await sql`INSERT INTO items (title) VALUES (${item})`;
     res.redirect("/");
   } catch (err) {
     console.log(err);
@@ -52,7 +46,7 @@ app.post("/edit", async (req, res) => {
   const id = req.body.updatedItemId;
 
   try {
-    await db.query("UPDATE items SET title = ($1) WHERE id = $2", [item, id]);
+    await sql`UPDATE items SET title = ${item} WHERE id = ${id}`;
     res.redirect("/");
   } catch (err) {
     console.log(err);
@@ -62,13 +56,14 @@ app.post("/edit", async (req, res) => {
 app.post("/delete", async (req, res) => {
   const id = req.body.deleteItemId;
   try {
-    await db.query("DELETE FROM items WHERE id = $1", [id]);
+    await sql`DELETE FROM items WHERE id = ${id}`;
     res.redirect("/");
   } catch (err) {
     console.log(err);
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+// Start the server
+app.listen(process.env.PORT || 3000, () => {
+  console.log(`Server running on port ${process.env.PORT || 3000}`);
 });
